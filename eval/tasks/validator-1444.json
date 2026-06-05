@@ -1,0 +1,16 @@
+{
+  "instance_id": "go-playground__validator-1444",
+  "repo": "go-playground/validator",
+  "base_commit": "3fd4678e4a0346d57ac1ebcb81ceb86a87ed59f0",
+  "problem_statement": "fix: make \"file://\" fail `url` validation\n\n\"file://\" is not a valid URL since it has no path.\r\n\r\n## Fixes Or Enhances\r\n\r\nMakes `\"file://\"` fail the `url` validation instead of passing it.\r\n\r\nThis is akin to `\"http://\"` already failing as expected in tests. \r\n\r\n**Make sure that you've checked the boxes below before you submit PR:**\r\n- [x] Tests exist or have been written that cover this particular change.\r\n\r\n@go-playground/validator-maintainers",
+  "patch": "diff --git a/baked_in.go b/baked_in.go\nindex 0a2eb42..c968ad4 100644\n--- a/baked_in.go\n+++ b/baked_in.go\n@@ -1461,15 +1461,6 @@ func isURI(fl FieldLevel) bool {\n \tpanic(fmt.Sprintf(\"Bad field type %s\", field.Type()))\n }\n \n-// isFileURL is the helper function for validating if the `path` valid file URL as per RFC8089\n-func isFileURL(path string) bool {\n-\tif !strings.HasPrefix(path, \"file:/\") {\n-\t\treturn false\n-\t}\n-\t_, err := url.ParseRequestURI(path)\n-\treturn err == nil\n-}\n-\n // isURL is the validation function for validating if the current field's value is a valid URL.\n func isURL(fl FieldLevel) bool {\n \tfield := fl.Field()\n@@ -1483,16 +1474,13 @@ func isURL(fl FieldLevel) bool {\n \t\t\treturn false\n \t\t}\n \n-\t\tif isFileURL(s) {\n-\t\t\treturn true\n-\t\t}\n-\n \t\turl, err := url.Parse(s)\n \t\tif err != nil || url.Scheme == \"\" {\n \t\t\treturn false\n \t\t}\n+\t\tisFileScheme := url.Scheme == \"file\"\n \n-\t\tif url.Host == \"\" && url.Fragment == \"\" && url.Opaque == \"\" {\n+\t\tif (isFileScheme && (len(url.Path) == 0 || url.Path == \"/\")) || (!isFileScheme && len(url.Host) == 0 && len(url.Fragment) == 0 && len(url.Opaque) == 0) {\n \t\t\treturn false\n \t\t}\n \n",
+  "test_patch": "diff --git a/validator_test.go b/validator_test.go\nindex 1273b47..2fcb3ff 100644\n--- a/validator_test.go\n+++ b/validator_test.go\n@@ -8255,7 +8255,9 @@ func TestUrl(t *testing.T) {\n \t\t{\"file:///c:/Windows/file.txt\", true},\n \t\t{\"file://localhost/path/to/file.txt\", true},\n \t\t{\"file://localhost/c:/WINDOWS/file.txt\", true},\n-\t\t{\"file://\", true},\n+\t\t{\"file:\", false},\n+\t\t{\"file:/\", false},\n+\t\t{\"file://\", false},\n \t\t{\"file:////remotehost/path/file.txt\", true},\n \t}\n \n",
+  "FAIL_TO_PASS": [
+    "TestUrl"
+  ],
+  "PASS_TO_PASS": [],
+  "go_version": "1.24",
+  "fix_pr": 1444,
+  "issue": null,
+  "merge_commit": "cf2267f30e617916a42e6217cd5d3c837100b374"
+}

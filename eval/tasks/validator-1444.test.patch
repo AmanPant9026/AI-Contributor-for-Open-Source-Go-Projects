@@ -1,0 +1,15 @@
+diff --git a/validator_test.go b/validator_test.go
+index 1273b47..2fcb3ff 100644
+--- a/validator_test.go
++++ b/validator_test.go
+@@ -8255,7 +8255,9 @@ func TestUrl(t *testing.T) {
+ 		{"file:///c:/Windows/file.txt", true},
+ 		{"file://localhost/path/to/file.txt", true},
+ 		{"file://localhost/c:/WINDOWS/file.txt", true},
+-		{"file://", true},
++		{"file:", false},
++		{"file:/", false},
++		{"file://", false},
+ 		{"file:////remotehost/path/file.txt", true},
+ 	}
+ 

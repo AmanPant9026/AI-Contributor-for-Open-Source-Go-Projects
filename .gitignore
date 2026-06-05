@@ -7,3 +7,6 @@ repos/
 outputs/*/
 *.egg-info/
 .pytest_cache/
+
+eval/tasks/_src-*.json
+eval/tasks/*.tests.txt

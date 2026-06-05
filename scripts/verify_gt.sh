@@ -1,52 +1,56 @@
 #!/usr/bin/env bash
-# gate-gt: verify a ground-truth instance is trustworthy:
-#   - at base (no fix), the reproduction test FAILS  (empty patch -> not resolved)
-#   - with the gold patch, the reproduction test PASSES (gold -> resolved)
+# verify_gt.sh <id> : gate-gt for one instance.
+# If validator-<id>.repro_test.go exists, it is an AUTHORED-REPRO instance:
+# use that file and read its test name(s). Otherwise use the gold .test.patch
+# and the FAIL_TO_PASS list from the JSON.
 set -uo pipefail
-
+ID="${1:?usage: verify_gt.sh <id e.g. 1284>}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="$ROOT/.cache/repos/validator"
-BASE="v10.24.0"
-IMG="${SANDBOX_IMAGE:-go-issue-agent-sandbox:go1.22}"
-TESTSRC="$ROOT/eval/tasks/validator-1314.repro_test.go"
-PATCHFILE="$ROOT/eval/tasks/validator-1314.fix.patch"
-TESTNAME="TestIssue1314PostcodeIso3166Alpha2Field"
+IMG="${SANDBOX_IMAGE:-go-issue-agent-sandbox:dev}"
+J="$ROOT/eval/tasks/validator-$ID.json"
+FIX="$ROOT/eval/tasks/validator-$ID.fix.patch"
+TST="$ROOT/eval/tasks/validator-$ID.test.patch"
+REPRO="$ROOT/eval/tasks/validator-$ID.repro_test.go"
 
 fail(){ echo "FAIL: $1"; exit 1; }
+[ -f "$J" ] || fail "$J not found (run scripts/build_gt.sh $ID first)"
+BASE="$(python3 -c "import json;print(json.load(open('$J'))['base_commit'])")"
+
+if [ -f "$REPRO" ]; then
+  MODE=repro
+  RE="^($(grep -oE 'func Test[A-Za-z0-9_]+' "$REPRO" | sed -E 's/func //' | paste -sd '|' -))\$"
+else
+  MODE=patch
+  RE="$(python3 -c "import json;f=json.load(open('$J'))['FAIL_TO_PASS'];print('^('+'|'.join(f)+')\$')")"
+fi
+[ "$RE" != '^()$' ] || fail "no test names for $ID"
+
 sandbox(){ docker run --rm -v "$REPO":/workspace -w /workspace "$IMG" \
   bash -c 'export PATH="/usr/local/go/bin:/go/bin:$PATH"; '"$1"; }
-reset_base(){ git -C "$REPO" checkout --force --quiet "$BASE"; \
-  git -C "$REPO" reset --hard --quiet "$BASE"; git -C "$REPO" clean -fdq; }
+reset_base(){ git -C "$REPO" checkout --force --quiet "$BASE"; git -C "$REPO" reset --hard --quiet "$BASE"; git -C "$REPO" clean -fdq; }
+apply(){ git -C "$REPO" apply --recount --ignore-whitespace "$1" 2>/dev/null || patch -d "$REPO" -p1 --fuzz=3 < "$1"; }
+install_tests(){
+  if [ "$MODE" = repro ]; then cp "$REPRO" "$REPO/zz_v${ID}_repro_test.go"
+  elif [ -s "$TST" ]; then apply "$TST" || fail "cannot apply test patch"
+  else fail "no test patch / repro for $ID"; fi
+}
 
-echo "=== gate-gt: validator-1314 ==="
-[ -d "$REPO/.git" ] || fail "validator checkout missing at $REPO (run 'make check-env' once to clone it)"
+echo "=== gate-gt: validator-$ID  (base ${BASE:0:12}, mode=$MODE)"
+echo "    tests=$RE"
+git -C "$REPO" cat-file -e "$BASE" 2>/dev/null || git -C "$REPO" fetch --all --tags --quiet
+reset_base || fail "cannot checkout base $BASE"
+install_tests
 
-echo "--- reset checkout to base ($BASE) ---"
-reset_base || fail "cannot checkout $BASE"
-echo "    HEAD=$(git -C "$REPO" rev-parse --short HEAD)"
+echo "--- [1/2] base, no code fix: tests must FAIL ---"
+if sandbox "go test -run '$RE' ./..." ; then reset_base; fail "tests PASSED at base — not capturing the bug"; fi
+echo "ok: fails at base"
 
-echo "--- drop in the reproduction test ---"
-cp "$TESTSRC" "$REPO/zz_issue1314_repro_test.go"
+apply "$FIX" || { reset_base; fail "cannot apply code patch"; }
+echo "--- [2/2] code fix applied: tests must PASS ---"
+sandbox "go test -run '$RE' ./..." || { reset_base; fail "tests FAILED with fix applied"; }
+echo "ok: passes with fix"
 
-echo "--- [1/2] BASE, no fix: repro must FAIL ---"
-if sandbox "go test -run $TESTNAME ." ; then
-  reset_base; fail "repro PASSED at base — bug not reproduced (base may already contain the fix)"
-fi
-echo "ok: bug reproduced at base (empty patch -> not resolved)"
-
-echo "--- apply gold fix (PR #1359) ---"
-git -C "$REPO" apply --recount --ignore-whitespace "$PATCHFILE" 2>/dev/null \
-  || patch -d "$REPO" -p1 --fuzz=3 < "$PATCHFILE" \
-  || { reset_base; fail "could not apply gold patch"; }
-
-echo "--- [2/2] gold fix applied: repro must PASS ---"
-sandbox "go test -run $TESTNAME ." || { reset_base; fail "repro FAILED with gold fix applied"; }
-echo "ok: gold patch resolves the issue (gold -> resolved)"
-
-echo "--- cleanup (restore clean base) ---"
 reset_base
-
 echo ""
-echo "PASSED: gate-gt for validator-1314  (gold resolves, empty fails)."
-echo "Lock it:"
-echo "    git add eval scripts/verify_gt.sh && git commit -m 'stage 1: validator-1314 ground truth' && git tag gate-gt-1314"
+echo "PASSED: gate-gt for validator-$ID"
