@@ -1,0 +1,17 @@
+{
+  "instance_id": "go-playground__validator-1314",
+  "repo": "go-playground/validator",
+  "base_commit": "2cce309b681d803db45519afc303a5d1598d3de1",
+  "base_tag": "v10.24.0",
+  "problem_statement": "Bug: `postcode_iso3166_alpha2_field` validation broken in v10.21.0\n\n### Package version eg. v9, v10:\n\nv10.22.0\n\n### Issue, Question or Enhancement:\n\nThis PR (https://github.com/go-playground/validator/pull/1270) released with v10.21.0 broke `postcode_iso3166_alpha2_field` validations.\n\nI believe this open PR (https://github.com/go-playground/validator/pull/1287) would fix it, but it has not been merged.\n\n### Code sample, to showcase or reproduce:\n\n    package main\n\n    import (\n        \"fmt\"\n        \"github.com/go-playground/validator/v10\"\n    )\n\n    type Example struct {\n        PostCode    string `validate:\"required,postcode_iso3166_alpha2_field=CountryCode\"`\n        CountryCode string `validate:\"required,iso3166_1_alpha2\"`\n    }\n\n    func main() {\n        validate := validator.New(validator.WithRequiredStructEnabled())\n        ex := Example{CountryCode: \"US\", PostCode: \"12345\"}\n        err := validate.Struct(ex)\n        fmt.Println(err)\n    }\n\nUnder v10.22.0, this outputs:\n> Key: 'Example.PostCode' Error:Field validation for 'PostCode' failed on the 'postcode_iso3166_alpha2_field' tag\n\nUnder v10.20.0, the validation works as expected.",
+  "patch": "diff --git a/baked_in.go b/baked_in.go\nindex 2f66c1836..dab60f18f 100644\n--- a/baked_in.go\n+++ b/baked_in.go\n@@ -1417,6 +1417,7 @@ func isPostcodeByIso3166Alpha2Field(fl FieldLevel) bool {\n \t\tpanic(fmt.Sprintf(\"Bad field type %T\", currentField.Interface()))\n \t}\n \n+\tpostcodeRegexInit.Do(initPostcodes)\n \treg, found := postCodeRegexDict[currentField.String()]\n \tif !found {\n \t\treturn false\n",
+  "test_patch": "diff --git a/zz_issue1314_repro_test.go b/zz_issue1314_repro_test.go\nnew file mode 100644\n--- /dev/null\n+++ b/zz_issue1314_repro_test.go\n@@ -0,0 +1,21 @@\n+package validator\n+\n+import \"testing\"\n+\n+// Reproduction for go-playground/validator issue #1314:\n+// postcode_iso3166_alpha2_field validation was broken in v10.21.0 because the\n+// postcode regexes were never lazily initialised. A valid US postcode should\n+// pass; before the fix (PR #1359) it fails.\n+func TestIssue1314PostcodeIso3166Alpha2Field(t *testing.T) {\n+\ttype Example struct {\n+\t\tPostCode    string `validate:\"required,postcode_iso3166_alpha2_field=CountryCode\"`\n+\t\tCountryCode string `validate:\"required,iso3166_1_alpha2\"`\n+\t}\n+\n+\tvalidate := New(WithRequiredStructEnabled())\n+\n+\tex := Example{CountryCode: \"US\", PostCode: \"12345\"}\n+\tif err := validate.Struct(ex); err != nil {\n+\t\tt.Fatalf(\"expected valid US postcode to pass, got: %v\", err)\n+\t}\n+}\n",
+  "FAIL_TO_PASS": [
+    "TestIssue1314PostcodeIso3166Alpha2Field"
+  ],
+  "PASS_TO_PASS": [],
+  "go_version": "1.22",
+  "issue": 1314,
+  "fix_pr": 1359,
+  "merge_commit": "b1111542c1b3658f1a90fd070f7fd2b4f27a3fcc"
+}
