@@ -27,3 +27,6 @@ git init && git add -A && git commit -m "stage 0: bedrock" && git tag gate-0
 ```
 
 The full plan lives in `docs/architecture.md`.
+
+## Stage 0 details
+See [docs/stage-0.md](docs/stage-0.md).
