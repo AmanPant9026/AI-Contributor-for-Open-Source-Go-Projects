@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# verify_gt.sh <id> : gate-gt for one instance.
-# If validator-<id>.repro_test.go exists, it is an AUTHORED-REPRO instance:
-# use that file and read its test name(s). Otherwise use the gold .test.patch
-# and the FAIL_TO_PASS list from the JSON.
+# verify_gt.sh <id> : gate-gt for one instance (new folder layout).
+# Files live in eval/tasks/validator-<id>/ : instance.json, fix.patch, test.patch, repro_test.go
+# An authored repro_test.go (if present) takes precedence and drives the test name(s).
 set -uo pipefail
 ID="${1:?usage: verify_gt.sh <id e.g. 1284>}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="$ROOT/.cache/repos/validator"
 IMG="${SANDBOX_IMAGE:-go-issue-agent-sandbox:dev}"
-J="$ROOT/eval/tasks/validator-$ID.json"
-FIX="$ROOT/eval/tasks/validator-$ID.fix.patch"
-TST="$ROOT/eval/tasks/validator-$ID.test.patch"
-REPRO="$ROOT/eval/tasks/validator-$ID.repro_test.go"
+DIR="$ROOT/eval/tasks/validator-$ID"
+J="$DIR/instance.json"
+FIX="$DIR/fix.patch"
+TST="$DIR/test.patch"
+REPRO="$DIR/repro_test.go"
 
 fail(){ echo "FAIL: $1"; exit 1; }
-[ -f "$J" ] || fail "$J not found (run scripts/build_gt.sh $ID first)"
+[ -f "$J" ] || fail "$J not found (run scripts/build_gt.sh $ID, then scripts/migrate_tasks.sh)"
 BASE="$(python3 -c "import json;print(json.load(open('$J'))['base_commit'])")"
 
 if [ -f "$REPRO" ]; then

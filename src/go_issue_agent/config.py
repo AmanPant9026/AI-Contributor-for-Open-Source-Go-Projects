@@ -11,7 +11,7 @@ load_dotenv()
 class Settings:
     llm_model: str = os.getenv("LLM_MODEL", "ollama/qwen2.5-coder:7b")
     llm_api_base: str = os.getenv("LLM_API_BASE", "http://localhost:11434")
-    sandbox_image: str = os.getenv("SANDBOX_IMAGE", "go-issue-agent-sandbox:go1.22")
+    sandbox_image: str = os.getenv("SANDBOX_IMAGE", "go-issue-agent-sandbox:dev")
     github_token: str | None = os.getenv("GITHUB_TOKEN")
 
 

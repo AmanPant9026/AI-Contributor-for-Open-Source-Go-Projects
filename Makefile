@@ -1,4 +1,4 @@
-SANDBOX_IMAGE ?= go-issue-agent-sandbox:go1.22
+SANDBOX_IMAGE ?= go-issue-agent-sandbox:dev
 
 .PHONY: stage0 setup build-sandbox pull-models check-env test lint fmt lock clean
 

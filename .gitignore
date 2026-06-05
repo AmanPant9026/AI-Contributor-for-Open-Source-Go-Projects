@@ -10,3 +10,6 @@ outputs/*/
 
 eval/tasks/_src-*.json
 eval/tasks/*.tests.txt
+
+eval/tasks/*/src.json
+eval/tasks/*/tests.txt
