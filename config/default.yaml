@@ -1,0 +1,4 @@
+# global defaults (used from later stages)
+candidates: 4
+max_repair_iters: 3
+model: ollama/qwen2.5-coder:7b

@@ -1,0 +1,24 @@
+[project]
+name = "go-issue-agent"
+version = "0.0.1"
+description = "Agentic AI contributor for open-source Go projects"
+requires-python = ">=3.11"
+dependencies = [
+    "litellm>=1.50,<2",
+    "pydantic>=2.7,<3",
+    "pyyaml>=6.0,<7",
+    "python-dotenv>=1.0,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0,<9", "ruff>=0.6,<1"]
+
+[project.scripts]
+agent = "go_issue_agent.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

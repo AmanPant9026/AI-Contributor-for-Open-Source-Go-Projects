@@ -1,0 +1,11 @@
+repo: go-playground/validator
+clone_url: https://github.com/go-playground/validator.git
+build_cmd: "go build ./..."
+test_cmd:  "go test ./..."
+vet_cmd:   "go vet ./..."
+fmt_cmd:   "gofmt -l ."
+lint_cmd:  "golangci-lint run"
+conventions: |
+  - Match existing error wrapping and code style.
+  - Add tests next to changed code in *_test.go files.
+  - Keep the public API stable.
