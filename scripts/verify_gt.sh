@@ -47,9 +47,19 @@ if sandbox "go test -run '$RE' ./..." ; then reset_base; fail "tests PASSED at b
 echo "ok: fails at base"
 
 apply "$FIX" || { reset_base; fail "cannot apply code patch"; }
-echo "--- [2/2] code fix applied: tests must PASS ---"
+echo "--- [2/3] code fix applied: FAIL_TO_PASS must PASS ---"
 sandbox "go test -run '$RE' ./..." || { reset_base; fail "tests FAILED with fix applied"; }
 echo "ok: passes with fix"
+
+# regression guard: the already-passing tests must still pass with the fix in.
+PTP="$(python3 -c "import json;print('|'.join(json.load(open('$J')).get('PASS_TO_PASS',[])))")"
+if [ -n "$PTP" ]; then
+  echo "--- [3/3] regression guard: PASS_TO_PASS must still PASS ---"
+  sandbox "go test -run '^($PTP)\$' ./..." || { reset_base; fail "PASS_TO_PASS regressed"; }
+  echo "ok: PASS_TO_PASS holds ($(python3 -c "import json;print(len(json.load(open('$J')).get('PASS_TO_PASS',[])))") tests)"
+else
+  echo "--- [3/3] regression guard: no PASS_TO_PASS recorded (run scripts/build_ptp.sh $ID) ---"
+fi
 
 reset_base
 echo ""

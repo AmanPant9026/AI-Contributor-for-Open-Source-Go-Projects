@@ -157,10 +157,10 @@ failure and stops that test immediately.
 
 ```go
 func TestSomething(t *testing.T) {
-	got := DoTheThing()
-	if got != "expected" {
-		t.Fatalf("wanted 'expected', got %q", got)   // <- marks the test FAILED
-	}
+    got := DoTheThing()
+    if got != "expected" {
+        t.Fatalf("wanted 'expected', got %q", got)   // <- marks the test FAILED
+    }
 }
 ```
 
@@ -226,11 +226,11 @@ When a PR is merged, git records a special **merge commit** that has **two**
 parents: the project's mainline just before the merge, and the PR's own work.
 
 ```
-					  ┌─────────────────┐
+                      ┌─────────────────┐
   mainline … ─► P ────┤  M (merge commit)│ ──► … (history continues)
-					  └───────▲─────────┘
-							  │
-			  PR's commits ───┘
+                      └───────▲─────────┘
+                              │
+              PR's commits ───┘
 ```
 
 - `M` is the **merge commit** — the moment the fix landed.
@@ -273,9 +273,9 @@ index 1a2b3c4..5d6e7f8 100644
 --- a/greeter.go
 +++ b/greeter.go
 @@ -3,5 +3,6 @@ func Greet(name string) string {
-	if name == "" {
-		name = "world"
-	}
+ 	if name == "" {
+ 		name = "world"
+ 	}
 -	return "Hi " + name
 +	greeting := "Hello, "
 +	return greeting + name
@@ -339,13 +339,13 @@ the root cause, the fix, and how the test catches it.
 - **Fix (the entire `fix.patch`).** Re-add the one missing line:
   ```diff
   @@ -1417,6 +1417,7 @@ func isPostcodeByIso3166Alpha2Field(fl FieldLevel) bool {
-		panic(fmt.Sprintf("Bad field type %T", currentField.Interface()))
-	}
+   		panic(fmt.Sprintf("Bad field type %T", currentField.Interface()))
+   	}
    
   +	postcodeRegexInit.Do(initPostcodes)
-	reg, found := postCodeRegexDict[currentField.String()]
-	if !found {
-		return false
+   	reg, found := postCodeRegexDict[currentField.String()]
+   	if !found {
+   		return false
   ```
 - **How the test catches it.** Our authored `repro_test.go` validates `"12345"`
   and asserts no error. On broken code the dict is empty → error → `t.Fatalf` →
@@ -402,12 +402,12 @@ the root cause, the fix, and how the test catches it.
   negatives:
   ```diff
   @@ -8255,7 +8255,9 @@ func TestUrl(t *testing.T) {
-		{"file://localhost/c:/WINDOWS/file.txt", true},
+   		{"file://localhost/c:/WINDOWS/file.txt", true},
   -		{"file://", true},
   +		{"file:", false},
   +		{"file:/", false},
   +		{"file://", false},
-		{"file:////remotehost/path/file.txt", true},
+   		{"file:////remotehost/path/file.txt", true},
   ```
   On broken code, `file://` is still accepted, so the new expectation
   (`false`) doesn't match reality → `TestUrl` fails. With the fix it's rejected →
@@ -467,7 +467,7 @@ and a full explanation of its role.
 | `patch` | the one-line `baked_in.go` diff | the gold **code fix** (no test files). The thing the agent's fix is compared against. Hidden from the agent. |
 | `test_patch` | a new-file diff adding the repro | the gold **test**, stored as a diff so it can be applied. Hidden. |
 | `FAIL_TO_PASS` | `["TestIssue1314PostcodeIso3166Alpha2Field"]` | the **headline grade**: the test name(s) that must go fail→pass. Hidden. |
-| `PASS_TO_PASS` | `[]` | tests that were already green and must stay green (regression guard). Empty for now; can be populated later with a handful of existing tests. Hidden. |
+| `PASS_TO_PASS` | list of test names | tests that were already green and must **stay** green (regression guard). Derived by `scripts/build_ptp.sh` (see below) — the tests in the fix's package(s) that pass both at base and at base+fix, minus `FAIL_TO_PASS`. Hidden. |
 | `go_version` | `"1.24"` | which Go toolchain to use (recent validator needs ≥1.24, §14). |
 | `issue` | `1314` | the GitHub issue number (provenance). |
 | `fix_pr` | `1359` | the PR that fixed it (provenance). |
@@ -701,6 +701,25 @@ writes a complete `instance.json` — fully automated, no manual diff copying.
 <a name="11-verify_gt"></a>
 ## 11. `verify_gt.sh` — the prover, line by line
 
+### 11.0 Deriving `PASS_TO_PASS` first (`scripts/build_ptp.sh`)
+
+Before an instance can be fully verified, its regression-guard list is derived
+once by `scripts/build_ptp.sh <id>`. The SWE-bench-standard method, scoped to the
+package(s) the fix touches (for validator, the root package):
+
+| step | action | why |
+|---|---|---|
+| 1 | find the touched packages from `fix.patch` | scope the guard to where regressions would actually appear; keeps it fast |
+| 2 | at **base**, no change, run `go test -v <pkgs>` → record passing tests (`before`) | the baseline of already-stable tests. Run *without* the gold test so a `test_patch` that references not-yet-existing symbols (e.g. 1284's `VarWithKey`) can't break this compile |
+| 3 | at **base + gold test + fix**, run `go test -v <pkgs>` → record passing tests (`after`) | the tests that pass once the fix is in |
+| 4 | `PASS_TO_PASS = (before ∩ after) − FAIL_TO_PASS` | only tests that were stable *and* stay stable, excluding the bug tests themselves |
+| 5 | write the list into `instance.json` | it becomes part of the hidden answer key |
+
+The intersection is the key: a test only qualifies if it passed *before* and
+*after*, so we never record something that was already broken or flaky.
+
+### 11.1 The verification experiment
+
 This is the *proof* that an instance is trustworthy. Run as
 `bash scripts/verify_gt.sh <id>`. The experiment it performs:
 
@@ -847,9 +866,10 @@ Two subtleties that caused real bugs earlier and are deliberately handled here:
 ## 13. The gate (`gate-gt`) and what each bug proved
 
 **Definition of the gate.** For *every* instance: the test must **fail** at
-`base_commit` (the bug is genuinely present) and **pass** after applying
-`fix.patch` (the fix genuinely works). An instance that cannot be made to fail at
-base is not capturing its bug and is dropped — fail-fast on bad instances.
+`base_commit` (the bug is genuinely present), **pass** after applying `fix.patch`
+(the fix genuinely works), and the instance's **`PASS_TO_PASS` tests must still
+pass** with the fix in (the fix breaks nothing that already worked). An instance
+that cannot be made to fail at base is not capturing its bug and is dropped.
 
 **The verified result — all five green, each "fail" arising differently:**
 
