@@ -1,0 +1,113 @@
+[
+  {
+    "instance_id": "go-playground__validator-1284",
+    "candidate": "gold",
+    "status": "resolved",
+    "resolved": true,
+    "ftp_passed": true,
+    "ptp_passed": true,
+    "recall": 1.0,
+    "precision": 1.0,
+    "build_ok": true,
+    "vet_ok": true,
+    "fmt_ok": true,
+    "diff_similarity": 1.0,
+    "note": "no PASS_TO_PASS recorded",
+    "cand_files": [
+      "validator_instance.go"
+    ],
+    "gold_files": [
+      "validator_instance.go"
+    ]
+  },
+  {
+    "instance_id": "go-playground__validator-1314",
+    "candidate": "gold",
+    "status": "resolved",
+    "resolved": true,
+    "ftp_passed": true,
+    "ptp_passed": true,
+    "recall": 1.0,
+    "precision": 1.0,
+    "build_ok": true,
+    "vet_ok": true,
+    "fmt_ok": true,
+    "diff_similarity": 1.0,
+    "note": "no PASS_TO_PASS recorded",
+    "cand_files": [
+      "baked_in.go"
+    ],
+    "gold_files": [
+      "baked_in.go"
+    ]
+  },
+  {
+    "instance_id": "go-playground__validator-1423",
+    "candidate": "gold",
+    "status": "resolved",
+    "resolved": true,
+    "ftp_passed": true,
+    "ptp_passed": true,
+    "recall": 1.0,
+    "precision": 1.0,
+    "build_ok": true,
+    "vet_ok": true,
+    "fmt_ok": true,
+    "diff_similarity": 1.0,
+    "note": "no PASS_TO_PASS recorded",
+    "cand_files": [
+      "baked_in.go",
+      "struct_level.go",
+      "util.go",
+      "validator.go"
+    ],
+    "gold_files": [
+      "baked_in.go",
+      "struct_level.go",
+      "util.go",
+      "validator.go"
+    ]
+  },
+  {
+    "instance_id": "go-playground__validator-1444",
+    "candidate": "gold",
+    "status": "resolved",
+    "resolved": true,
+    "ftp_passed": true,
+    "ptp_passed": true,
+    "recall": 1.0,
+    "precision": 1.0,
+    "build_ok": true,
+    "vet_ok": true,
+    "fmt_ok": true,
+    "diff_similarity": 1.0,
+    "note": "no PASS_TO_PASS recorded",
+    "cand_files": [
+      "baked_in.go"
+    ],
+    "gold_files": [
+      "baked_in.go"
+    ]
+  },
+  {
+    "instance_id": "go-playground__validator-1476",
+    "candidate": "gold",
+    "status": "resolved",
+    "resolved": true,
+    "ftp_passed": true,
+    "ptp_passed": true,
+    "recall": 1.0,
+    "precision": 1.0,
+    "build_ok": true,
+    "vet_ok": true,
+    "fmt_ok": true,
+    "diff_similarity": 1.0,
+    "note": "no PASS_TO_PASS recorded",
+    "cand_files": [
+      "regexes.go"
+    ],
+    "gold_files": [
+      "regexes.go"
+    ]
+  }
+]
