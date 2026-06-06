@@ -15,3 +15,4 @@ eval/tasks/*/src.json
 eval/tasks/*/tests.txt
 
 .DS_Store
+eval/results/gate2.json
