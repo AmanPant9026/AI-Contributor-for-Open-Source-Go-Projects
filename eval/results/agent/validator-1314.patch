@@ -1,0 +1,12 @@
+diff --git a/baked_in.go b/baked_in.go
+index 2f66c18..7aa056b 100644
+--- a/baked_in.go
++++ b/baked_in.go
+@@ -1408,6 +1408,7 @@ func isPostcodeByIso3166Alpha2Field(fl FieldLevel) bool {
+ 		return false
+ 	}
+ 
++	postcodeRegexInit.Do(initPostcodes)
+ 	currentField, kind, _, found := fl.GetStructFieldOKAdvanced2(fl.Parent(), params[0])
+ 	if !found {
+ 		return false

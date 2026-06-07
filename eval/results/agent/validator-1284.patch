@@ -1,0 +1,37 @@
+diff --git a/validator_instance.go b/validator_instance.go
+index 9362cd7..c3d5192 100644
+--- a/validator_instance.go
++++ b/validator_instance.go
+@@ -181,7 +181,7 @@ func (v Validate) ValidateMapCtx(ctx context.Context, data map[string]interface{
+ 				errs[field] = errors.New("The field: '" + field + "' is not a map to dive")
+ 			}
+ 		} else if ruleStr, ok := rule.(string); ok {
+-			err := v.VarCtx(ctx, data[field], ruleStr)
++			err := v.VarWithKeyCtx(ctx, field, data[field], ruleStr)
+ 			if err != nil {
+ 				errs[field] = err
+ 			}
+@@ -609,6 +609,10 @@ func (v *Validate) Var(field interface{}, tag string) error {
+ // You will need to assert the error if it's not nil eg. err.(validator.ValidationErrors) to access the array of errors.
+ // validate Array, Slice and maps fields which may contain more than one error
+ func (v *Validate) VarCtx(ctx context.Context, field interface{}, tag string) (err error) {
++	return v.VarWithKeyCtx(ctx, "", field, tag)
++}
++
++func (v *Validate) VarWithKeyCtx(ctx context.Context, key string, field interface{}, tag string) (err error) {
+ 	if len(tag) == 0 || tag == skipValidationTag {
+ 		return nil
+ 	}
+@@ -619,7 +623,11 @@ func (v *Validate) VarCtx(ctx context.Context, field interface{}, tag string) (e
+ 	vd := v.pool.Get().(*validate)
+ 	vd.top = val
+ 	vd.isPartial = false
+-	vd.traverseField(ctx, val, val, vd.ns[0:0], vd.actualNs[0:0], defaultCField, ctag)
++	if len(key) > 0 {
++		vd.traverseField(ctx, val, val, append(vd.ns[0:0], key...), append(vd.actualNs[0:0], key...), defaultCField, ctag)
++	} else {
++		vd.traverseField(ctx, val, val, vd.ns[0:0], vd.actualNs[0:0], defaultCField, ctag)
++	}
+ 
+ 	if len(vd.errs) > 0 {
+ 		err = vd.errs

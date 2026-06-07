@@ -127,14 +127,14 @@ def _run_resolved(inst_dir: Path, inst: dict, iid: str) -> tuple[bool, bool, boo
     return ftp_passed, ptp_passed, (ftp_passed and ptp_passed)
 
 
-def evaluate(inst_dir: Path, candidate: str) -> metrics.InstanceScore:
+def evaluate(inst_dir: Path, candidate: str, cand_diff_override: str | None = None) -> metrics.InstanceScore:
     inst = json.loads((inst_dir / "instance.json").read_text())
     iid = inst_dir.name.replace("validator-", "")
     instance_id = inst.get("instance_id", inst_dir.name)
     gold_patch = inst.get("patch", "")
     cand_diff = (gold_patch if candidate == "gold"
                  else "" if candidate == "empty"
-                 else inst.get("_candidate", ""))
+                 else (cand_diff_override or ""))
     gold_files = metrics.files_in_diff(gold_patch)
     cand_files = metrics.files_in_diff(cand_diff)
     sim = metrics.diff_similarity(cand_diff, gold_patch)
@@ -213,6 +213,78 @@ def score_all(candidate: str, only: list[str] | None) -> list[metrics.InstanceSc
     return scores
 
 
+def score_agent(only: list[str] | None) -> list[metrics.InstanceScore]:
+    """Run the REAL agent on each instance, then score its code-only patch with
+    the same ruler used for gold/empty. Needs Ollama + Docker. Per-instance
+    errors are captured (status='error') so one failure doesn't abort the gate."""
+    from go_issue_agent.agent import run_agent          # lazy: avoids importing llm for gate-2
+    from go_issue_agent.llm.client import LLMClient
+
+    llm = LLMClient(max_tokens=1024)
+    agent_out = RESULTS / "agent"
+    agent_out.mkdir(parents=True, exist_ok=True)
+    scores: list[metrics.InstanceScore] = []
+    for d in load_instance_dirs(only):
+        inst = json.loads((d / "instance.json").read_text())
+        instance_id = inst.get("instance_id", d.name)
+        print(f"  [agent] {d.name}: running agent (this calls the model + sandbox) ...", flush=True)
+        try:
+            repo_ops.checkout(REPO_DIR, inst["base_commit"])
+            res = run_agent(inst["problem_statement"], REPO_DIR,
+                            llm=llm, base_ref=inst["base_commit"],
+                            on_log=lambda m, n=d.name: print(f"      [{n}] {m}", flush=True))
+            (agent_out / f"{d.name}.patch").write_text(res.code_patch)
+            (agent_out / f"{d.name}.pr.md").write_text(f"# {res.pr_title}\n\n{res.pr_body}\n")
+            (agent_out / f"{d.name}.repro_test.go").write_text(res.repro_code)
+            if not res.code_patch.strip() and res.attempt_patch.strip():
+                (agent_out / f"{d.name}.attempt.patch").write_text(res.attempt_patch)
+            sc = evaluate(d, "agent", cand_diff_override=res.code_patch)
+            sc.note = (sc.note + f"; agent={res.status} attempts={res.attempts}").strip("; ")
+            scores.append(sc)
+        except Exception as e:  # noqa: BLE001
+            print(f"      [{d.name}] ERROR: {e}", flush=True)
+            scores.append(metrics.InstanceScore(
+                instance_id, "agent", status="error", resolved=False,
+                ftp_passed=False, ptp_passed=False, recall=None, precision=None,
+                build_ok=None, vet_ok=None, fmt_ok=None, diff_similarity=0.0,
+                note=f"agent crashed: {e}", cand_files=[], gold_files=[]))
+    return scores
+
+
+def cmd_gate4(args) -> int:
+    dirs = load_instance_dirs(args.only)
+    if not dirs:
+        print("FAIL: no instances found"); return 1
+    print(f"=== gate-4: run the agent end-to-end over {len(dirs)} instance(s) ===")
+    print("(this uses the real model via Ollama and the Docker sandbox; first run is slow)")
+    scores = score_agent(args.only)
+    print("\n" + metrics.format_table(scores))
+
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    (RESULTS / "gate4.json").write_text(json.dumps([s.to_dict() for s in scores], indent=2))
+
+    ran = [s for s in scores if s.status != "error"]
+    resolved = [s for s in scores if s.resolved]
+    target = next((s for s in scores if s.instance_id.endswith("1314")), None)
+    print()
+    print(f"statuses     : {metrics.status_counts(scores)}")
+    print(f"ran clean    : {len(ran)}/{len(scores)} (no crashes)")
+    print(f"resolved     : {sum(s.resolved for s in scores)}/{len(scores)} "
+          f"(resolution rate {metrics.resolution_rate(scores)})")
+    if target is not None:
+        print(f"target #1314 : {'RESOLVED' if target.resolved else target.status}")
+    print()
+    # Gate: ran clean on ALL, and resolved at least one (target 1314 the goal).
+    if len(ran) == len(scores) and len(resolved) >= 1:
+        print("PASSED: gate-4 -- the agent runs clean on all instances and resolves at least one.")
+        return 0
+    if len(ran) != len(scores):
+        print("FAIL: gate-4 -- the agent crashed on some instance(s) (see rows above).")
+    else:
+        print("FAIL: gate-4 -- the agent ran clean but resolved none. Inspect eval/results/agent/.")
+    return 1
+
+
 # ---------------------------------------------------------------- CLI
 
 def cmd_gate(args) -> int:
@@ -261,9 +333,10 @@ def cmd_candidate(args) -> int:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Stage 2 eval harness (the ruler).")
+    ap = argparse.ArgumentParser(description="Stage 2 eval harness (the ruler) + Stage 4 agent runner.")
     ap.add_argument("--gate", action="store_true", help="run the gate-2 self-check (gold vs empty)")
-    ap.add_argument("--candidate", choices=["gold", "empty"], help="score one candidate kind")
+    ap.add_argument("--gate4", action="store_true", help="run the gate-4 agent end-to-end check")
+    ap.add_argument("--candidate", choices=["gold", "empty", "agent"], help="score one candidate kind")
     ap.add_argument("--only", nargs="*", default=None, help="restrict to these instance ids")
     args = ap.parse_args()
     if not REPO_DIR.exists():
@@ -271,6 +344,13 @@ def main() -> int:
         return 1
     if args.gate:
         return cmd_gate(args)
+    if args.gate4:
+        return cmd_gate4(args)
+    if args.candidate == "agent":
+        scores = score_agent(args.only)
+        print("\n" + metrics.format_table(scores))
+        print(f"\nresolution rate: {metrics.resolution_rate(scores)}")
+        return 0
     if args.candidate:
         return cmd_candidate(args)
     ap.print_help()

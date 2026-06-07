@@ -1,0 +1,10 @@
+diff --git a/postcode_regexes.go b/postcode_regexes.go
+index 326b8f7..3c3d506 100644
+--- a/postcode_regexes.go
++++ b/postcode_regexes.go
+@@ -176,4 +176,5 @@ func initPostcodes() {
+ 	for countryCode, pattern := range postCodePatternDict {
+ 		postCodeRegexDict[countryCode] = regexp.MustCompile(pattern)
+ 	}
++	e164Regex = regexp.MustCompile(e164Pattern)
+ }

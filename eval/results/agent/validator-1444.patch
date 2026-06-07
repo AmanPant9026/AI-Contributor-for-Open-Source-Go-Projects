@@ -1,0 +1,18 @@
+diff --git a/baked_in.go b/baked_in.go
+index 0a2eb42..471f543 100644
+--- a/baked_in.go
++++ b/baked_in.go
+@@ -1466,8 +1466,11 @@ func isFileURL(path string) bool {
+ 	if !strings.HasPrefix(path, "file:/") {
+ 		return false
+ 	}
+-	_, err := url.ParseRequestURI(path)
+-	return err == nil
++	u, err := url.ParseRequestURI(path)
++	if err != nil {
++		return false
++	}
++	return u.Path != "" && u.Path != "/"
+ }
+ 
+ // isURL is the validation function for validating if the current field's value is a valid URL.

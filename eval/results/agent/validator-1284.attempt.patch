@@ -1,0 +1,13 @@
+diff --git a/validator_instance.go b/validator_instance.go
+index 9362cd7..ef84d93 100644
+--- a/validator_instance.go
++++ b/validator_instance.go
+@@ -181,7 +181,7 @@ func (v Validate) ValidateMapCtx(ctx context.Context, data map[string]interface{
+ 				errs[field] = errors.New("The field: '" + field + "' is not a map to dive")
+ 			}
+ 		} else if ruleStr, ok := rule.(string); ok {
+-			err := v.VarCtx(ctx, data[field], ruleStr)
++			err := v.VarWithKeyCtx(ctx, field, data[field], ruleStr)
+ 			if err != nil {
+ 				errs[field] = err
+ 			}

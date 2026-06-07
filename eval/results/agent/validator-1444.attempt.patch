@@ -1,0 +1,13 @@
+diff --git a/baked_in.go b/baked_in.go
+index 0a2eb42..eb39fbb 100644
+--- a/baked_in.go
++++ b/baked_in.go
+@@ -1463,7 +1463,7 @@ func isURI(fl FieldLevel) bool {
+ 
+ // isFileURL is the helper function for validating if the `path` valid file URL as per RFC8089
+ func isFileURL(path string) bool {
+-	if !strings.HasPrefix(path, "file:/") {
++	if !strings.HasPrefix(path, "file://") {
+ 		return false
+ 	}
+ 	_, err := url.ParseRequestURI(path)
