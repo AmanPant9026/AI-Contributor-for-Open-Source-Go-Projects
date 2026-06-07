@@ -99,7 +99,8 @@ def run_agent(problem_statement: str, repo_dir: str | Path, *, llm: LLMClient,
         # Do no harm: abstain rather than submit something unverifiable.
         say("repro: could not produce a reproducing test -> abstaining (cannot verify a fix)")
         return AgentResult(status="no_repro", code_patch="", repro_code=repro_code,
-                           attempts=0, internal_ok=False, log=log)
+                           attempts=0, internal_ok=False,
+                           log=log)
 
     # Phase 4b/5/6: propose -> apply -> validate, bounded repair loop
     feedback = ""

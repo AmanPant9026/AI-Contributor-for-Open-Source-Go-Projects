@@ -27,8 +27,6 @@ _STOP = {
 }
 _TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{2,}")
 _BACKTICK_RE = re.compile(r"`([^`]+)`")
-
-
 @dataclass
 class Localization:
     terms: list[str]                       # issue-derived search terms

@@ -11,14 +11,24 @@ import sys
 from ..config import settings
 
 
+def _call_litellm(kwargs: dict, temperature: float):
+    """Call litellm with temperature, but fall back WITHOUT it for models that reject
+    temperature (some newer models, e.g. Claude Opus 4.x, deprecate the parameter)."""
+    import litellm  # lazy import so unit tests need not have it installed
+    try:
+        return litellm.completion(temperature=temperature, **kwargs)
+    except Exception as e:  # noqa: BLE001
+        if "temperature" in str(e).lower():
+            return litellm.completion(**kwargs)   # retry without the unsupported param
+        raise
+
+
 def _litellm_completion(model: str, api_base: str | None, messages: list[dict],
                         temperature: float, max_tokens: int) -> str:
-    import litellm  # lazy import so unit tests need not have it installed
-    kwargs = dict(model=model, messages=messages,
-                  temperature=temperature, max_tokens=max_tokens)
+    kwargs = dict(model=model, messages=messages, max_tokens=max_tokens)
     if api_base:                       # only Ollama needs an explicit base; hosted APIs route by name
         kwargs["api_base"] = api_base
-    resp = litellm.completion(**kwargs)
+    resp = _call_litellm(kwargs, temperature)
     return resp.choices[0].message.content or ""
 
 
@@ -49,13 +59,12 @@ class LLMClient:
 
 def complete(prompt: str, *, model: str | None = None,
              temperature: float = 0.0, max_tokens: int = 256) -> str:
-    import litellm
     m = model or settings.llm_model
     kwargs = dict(model=m, messages=[{"role": "user", "content": prompt}],
-                  temperature=temperature, max_tokens=max_tokens)
+                  max_tokens=max_tokens)
     if m.startswith("ollama/"):
         kwargs["api_base"] = settings.llm_api_base
-    resp = litellm.completion(**kwargs)
+    resp = _call_litellm(kwargs, temperature)
     return resp.choices[0].message.content or ""
 
 

@@ -1,3 +1,3 @@
-# Fix postcode_iso3166_alpha2_field validation by initializing postcode regex map
+# Fix postcode_iso3166_alpha2_field validation by ensuring postcode regex initialization
 
-The `isPostcodeByIso3166Alpha2Field` function was failing because the postcode regex map was not initialized before use. PR #1270 introduced a lazy initialization pattern but failed to call the initialization in this validation function. This fix adds the missing `postcodeRegexInit.Do(initPostcodes)` call to ensure the postcode patterns are loaded before validation occurs.
+The `postcode_iso3166_alpha2_field` validation was broken in v10.21.0 because the postcode regex patterns were not being initialized before use. This fix adds the missing `postcodeRegexInit.Do(initPostcodes)` call to ensure the regex patterns are loaded before attempting to validate postcodes against country-specific formats.

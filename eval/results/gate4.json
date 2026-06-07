@@ -32,7 +32,7 @@
     "build_ok": true,
     "vet_ok": true,
     "fmt_ok": true,
-    "diff_similarity": 1.0,
+    "diff_similarity": 0.986,
     "note": "agent=resolved_internally attempts=1",
     "cand_files": [
       "baked_in.go"

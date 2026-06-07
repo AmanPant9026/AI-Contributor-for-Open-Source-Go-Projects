@@ -17,6 +17,6 @@ func TestAgentRepro(t *testing.T) {
 
 	err := validate.Struct(s)
 	if err != nil {
-		t.Errorf("Expected no error when validating struct with private field, but got: %v", err)
+		t.Errorf("Expected validation to succeed without panic, but got error: %v", err)
 	}
 }

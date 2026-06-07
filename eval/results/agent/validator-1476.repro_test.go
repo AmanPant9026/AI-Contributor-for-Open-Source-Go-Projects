@@ -13,22 +13,17 @@ func TestAgentRepro(t *testing.T) {
 		shouldFail  bool
 	}{
 		{
-			name:        "valid phone number with +1",
-			phoneNumber: "+12345678901",
+			name:        "valid E.164 phone number",
+			phoneNumber: "+14155552671",
 			shouldFail:  false,
 		},
 		{
-			name:        "valid phone number with +44",
-			phoneNumber: "+442071838750",
-			shouldFail:  false,
-		},
-		{
-			name:        "invalid phone number starting with +0",
+			name:        "invalid E.164 phone number starting with +0",
 			phoneNumber: "+01234567890",
 			shouldFail:  true,
 		},
 		{
-			name:        "invalid phone number starting with +00",
+			name:        "invalid E.164 phone number starting with +00",
 			phoneNumber: "+001234567890",
 			shouldFail:  true,
 		},
@@ -36,15 +31,23 @@ func TestAgentRepro(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validate.Var(tt.phoneNumber, "e164")
-			
+			type TestStruct struct {
+				Phone string `validate:"e164"`
+			}
+
+			testData := TestStruct{
+				Phone: tt.phoneNumber,
+			}
+
+			err := validate.Struct(testData)
+
 			if tt.shouldFail {
 				if err == nil {
-					t.Errorf("expected validation to fail for %s, but it passed", tt.phoneNumber)
+					t.Errorf("Expected validation to fail for phone number %s, but it passed", tt.phoneNumber)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("expected validation to pass for %s, but got error: %v", tt.phoneNumber, err)
+					t.Errorf("Expected validation to pass for phone number %s, but it failed: %v", tt.phoneNumber, err)
 				}
 			}
 		})
