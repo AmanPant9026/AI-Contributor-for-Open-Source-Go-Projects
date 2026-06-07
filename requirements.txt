@@ -4,3 +4,6 @@ litellm>=1.50,<2
 pydantic>=2.7,<3
 pyyaml>=6.0,<7
 python-dotenv>=1.0,<2
+# Stage 3: Go parsing for ast_nav / repo_map
+tree-sitter>=0.21,<1
+tree-sitter-go>=0.21,<1
