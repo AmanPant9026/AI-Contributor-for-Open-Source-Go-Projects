@@ -1,3 +1,3 @@
-# Fix file:// URL validation to require a valid path
+# Fix file:// URL validation to require a path component
 
-The `isFileURL` validator was incorrectly accepting "file://" as valid even though it has no path component. This fix ensures that file URLs must have a non-empty path (other than just "/") to pass validation, making the behavior consistent with how "http://" already fails validation. The validator now checks that the parsed URL contains a meaningful path after successful parsing.
+The `file://` URL was incorrectly passing validation despite having no path component, similar to how `http://` correctly fails validation. The fix adds a check to ensure that parsed file URLs have a non-empty path, making `file://` fail validation while valid file URLs like `file:///path/to/file` continue to pass.

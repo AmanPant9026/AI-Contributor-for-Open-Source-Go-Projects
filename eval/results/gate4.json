@@ -11,7 +11,7 @@
     "build_ok": true,
     "vet_ok": true,
     "fmt_ok": true,
-    "diff_similarity": 0.221,
+    "diff_similarity": 0.267,
     "note": "agent=resolved_internally attempts=1",
     "cand_files": [
       "validator_instance.go"
@@ -66,16 +66,16 @@
   {
     "instance_id": "go-playground__validator-1444",
     "candidate": "agent",
-    "status": "resolved",
-    "resolved": true,
-    "ftp_passed": true,
+    "status": "unresolved",
+    "resolved": false,
+    "ftp_passed": false,
     "ptp_passed": true,
     "recall": 1.0,
     "precision": 1.0,
     "build_ok": true,
     "vet_ok": true,
     "fmt_ok": true,
-    "diff_similarity": 0.202,
+    "diff_similarity": 0.207,
     "note": "agent=resolved_internally attempts=1",
     "cand_files": [
       "baked_in.go"
@@ -87,18 +87,20 @@
   {
     "instance_id": "go-playground__validator-1476",
     "candidate": "agent",
-    "status": "noop",
-    "resolved": false,
-    "ftp_passed": false,
+    "status": "resolved",
+    "resolved": true,
+    "ftp_passed": true,
     "ptp_passed": true,
-    "recall": null,
-    "precision": null,
-    "build_ok": null,
-    "vet_ok": null,
-    "fmt_ok": null,
-    "diff_similarity": 0.0,
-    "note": "no patch applied (no-op); agent=abstained attempts=3",
-    "cand_files": [],
+    "recall": 1.0,
+    "precision": 1.0,
+    "build_ok": true,
+    "vet_ok": true,
+    "fmt_ok": true,
+    "diff_similarity": 0.953,
+    "note": "agent=resolved_internally attempts=3",
+    "cand_files": [
+      "regexes.go"
+    ],
     "gold_files": [
       "regexes.go"
     ]

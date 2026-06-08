@@ -44,3 +44,31 @@ def propose_fix(llm: LLMClient, problem_statement: str, context: str,
         "fix", problem_statement=problem_statement, context=context, feedback=fb,
         target=target_file or "the file shown in SOURCE")}], max_tokens=900)
     return parse_edits(out)
+
+
+def rank_suspects(llm: LLMClient, problem_statement: str, context: str,
+                  candidates: list[str]) -> list[str]:
+    """Ask the model which of the coverage-narrowed `candidates` most likely contain the
+    bug, and order them by its answer. Coverage does the NARROWING (these are the files the
+    repro executed); the model does the ORDERING -- the step lexical ranking gets wrong when
+    the buggy file is a quiet data/util file the issue text doesn't name. Returns every
+    candidate (model's picks first, then the rest in their original order), so a weak or
+    unparseable reply degrades gracefully to the lexical order we started with."""
+    if len(candidates) <= 1:
+        return list(candidates)
+    out = llm.complete([{"role": "user", "content": render(
+        "rank", problem_statement=problem_statement, context=context,
+        candidates="\n".join(candidates))}], max_tokens=120).strip()
+    picked: list[str] = []
+    for line in out.splitlines():
+        low = line.lower()
+        for c in candidates:
+            if c in picked:
+                continue
+            if c.lower() in low or c.rsplit("/", 1)[-1].lower() in low:
+                picked.append(c)
+                break
+    for c in candidates:                # graceful fallback: keep anything unmentioned, in order
+        if c not in picked:
+            picked.append(c)
+    return picked

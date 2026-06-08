@@ -35,6 +35,16 @@ def test_cmd(test_names: list[str] | None = None, pkgs: str = "./...") -> str:
     return f"go test {pkgs}"
 
 
+def test_cover_cmd(test_names: list[str] | None = None, pkgs: str = "./...",
+                   profile: str = "cover.out") -> str:
+    """Run tests under coverage of ALL packages (-coverpkg) so cross-package execution
+    is captured, writing a profile we parse for the files the repro actually touched."""
+    sel = ""
+    if test_names:
+        sel = "-run '^(" + "|".join(test_names) + ")$' "
+    return f"go test {sel}-coverpkg={pkgs} -coverprofile={profile} {pkgs}"
+
+
 def gofmt_check_cmd(go_files: list[str]) -> str:
     """gofmt -l on specific files; empty output (and exit 0) means all formatted.
     Scoped to the given files only -- never the whole tree (see Stage 2 §4.3)."""
@@ -54,17 +64,24 @@ def _run(repo_dir: str | Path, cmd: str, timeout_s: int = 1200) -> CommandResult
 
 
 def go_build(repo_dir: str | Path, pkgs: str = "./...") -> CommandResult:
-    return _run(repo_dir, build_cmd(pkgs))
+    return _run(repo_dir, build_cmd(pkgs), timeout_s=300)
 
 
 def go_vet(repo_dir: str | Path, pkgs: str = "./...") -> CommandResult:
-    return _run(repo_dir, vet_cmd(pkgs))
+    return _run(repo_dir, vet_cmd(pkgs), timeout_s=180)
 
 
 def go_test(repo_dir: str | Path, test_names: list[str] | None = None,
             pkgs: str = "./...") -> CommandResult:
-    return _run(repo_dir, test_cmd(test_names, pkgs))
+    return _run(repo_dir, test_cmd(test_names, pkgs), timeout_s=300)
+
+
+def go_test_cover(repo_dir: str | Path, test_names: list[str] | None = None,
+                  pkgs: str = "./...") -> CommandResult:
+    """Run the repro under coverage; the profile lands at <repo>/cover.out (parsed by
+    phases.evidence). Coverage is collected even when the test fails."""
+    return _run(repo_dir, test_cover_cmd(test_names, pkgs), timeout_s=300)
 
 
 def gofmt_check(repo_dir: str | Path, go_files: list[str]) -> CommandResult:
-    return _run(repo_dir, gofmt_check_cmd(go_files))
+    return _run(repo_dir, gofmt_check_cmd(go_files), timeout_s=60)

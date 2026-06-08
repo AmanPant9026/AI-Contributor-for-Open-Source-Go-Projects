@@ -4,19 +4,21 @@ import (
 	"testing"
 )
 
+type testStructWithPrivateField struct {
+	publicField  string `validate:"required"`
+	privateField string `validate:"required"`
+}
+
 func TestAgentRepro(t *testing.T) {
 	validate := New()
 
-	type testStruct struct {
-		privateField string `validate:"required"`
-	}
-
-	s := testStruct{
-		privateField: "value",
+	s := testStructWithPrivateField{
+		publicField:  "public",
+		privateField: "private",
 	}
 
 	err := validate.Struct(s)
 	if err != nil {
-		t.Errorf("Expected validation to succeed without panic, but got error: %v", err)
+		t.Errorf("Expected no error when validating struct with private fields, got: %v", err)
 	}
 }

@@ -236,6 +236,7 @@ def score_agent(only: list[str] | None) -> list[metrics.InstanceScore]:
             (agent_out / f"{d.name}.patch").write_text(res.code_patch)
             (agent_out / f"{d.name}.pr.md").write_text(f"# {res.pr_title}\n\n{res.pr_body}\n")
             (agent_out / f"{d.name}.repro_test.go").write_text(res.repro_code)
+            (agent_out / f"{d.name}.trace.json").write_text(json.dumps(res.trace, indent=2))
             if not res.code_patch.strip() and res.attempt_patch.strip():
                 (agent_out / f"{d.name}.attempt.patch").write_text(res.attempt_patch)
             sc = evaluate(d, "agent", cand_diff_override=res.code_patch)

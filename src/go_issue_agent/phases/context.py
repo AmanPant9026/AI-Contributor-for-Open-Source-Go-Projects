@@ -103,6 +103,65 @@ def focus_snippets(repo_dir: str | Path, terms: list[str], candidates: list[str]
     return "\n\n".join(blocks)
 
 
+def file_excerpt(repo_dir: str | Path, path: str, terms: list[str], *,
+                 whole_below: int = 400, max_funcs: int = 8) -> str:
+    """The current EXACT text of `path` worth editing, so the model can copy a SEARCH
+    block verbatim instead of guessing (the cause of the 'SEARCH text not found' cascade
+    when we target a file the model hadn't read). Small files are included whole; large
+    files (e.g. baked_in.go) are reduced to the functions matching an issue term or
+    enclosing a term-hit, plus short windows around any other term-hits (so package-level
+    vars like a regex constant are caught too). Returns '' if the file can't be read."""
+    repo_dir = Path(repo_dir)
+    full = repo_dir / path
+    try:
+        n_lines = sum(1 for _ in full.open(encoding="utf-8", errors="replace"))
+    except OSError:
+        return ""
+    label = f"// TARGET FILE: {path}  (edit THIS file; copy SEARCH text verbatim from here)"
+
+    if n_lines <= whole_below:                       # small file -> show it all
+        raw = read_span.read_span(repo_dir, path, 1, n_lines, with_line_numbers=False)
+        return f"{label}\n{raw}" if raw else ""
+
+    # large file -> relevant functions + windows around term-hits
+    long_terms = [t for t in terms if len(t) >= 4]
+    hit_lines = {h.line for t in terms
+                 for h in search_code.search_code(repo_dir, re.escape(t)) if h.path == path}
+    try:
+        syms = ast_nav.parse_file(full)
+    except Exception:  # noqa: BLE001
+        syms = []
+    chosen, seen = [], set()
+    for s in syms:
+        name_match = any(t.lower() in s.name.lower() or s.name.lower() in t.lower()
+                         for t in long_terms)
+        encloses = any(s.start_line <= ln <= s.end_line for ln in hit_lines)
+        if (name_match or encloses) and s.name not in seen:
+            seen.add(s.name)
+            chosen.append(s)
+        if len(chosen) >= max_funcs:
+            break
+
+    blocks: list[str] = []
+    covered: set[int] = set()
+    for s in chosen:
+        raw = read_span.read_span(repo_dir, path, s.start_line, s.end_line,
+                                  with_line_numbers=False)
+        if raw:
+            blocks.append(raw)
+            covered.update(range(s.start_line, s.end_line + 1))
+    for ln in sorted(l for l in hit_lines if l not in covered)[:4]:   # e.g. package-level vars
+        raw = read_span.read_span(repo_dir, path, max(1, ln - 8), ln + 8,
+                                  with_line_numbers=False)
+        if raw:
+            blocks.append(raw)
+    if not blocks:                                   # nothing matched -> head of file
+        raw = read_span.read_span(repo_dir, path, 1, 120, with_line_numbers=False)
+        if raw:
+            blocks.append(raw)
+    return f"{label}\n" + "\n\n".join(blocks) if blocks else ""
+
+
 def gather(llm: LLMClient, repo_dir: str | Path, loc: Localization,
            problem_statement: str, *, max_reads: int = 5) -> Context:
     repo_dir = Path(repo_dir)

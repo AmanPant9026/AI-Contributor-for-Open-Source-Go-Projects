@@ -1,10 +1,12 @@
-diff --git a/postcode_regexes.go b/postcode_regexes.go
-index 326b8f7..6893158 100644
---- a/postcode_regexes.go
-+++ b/postcode_regexes.go
-@@ -176,4 +176,5 @@ func initPostcodes() {
- 	for countryCode, pattern := range postCodePatternDict {
- 		postCodeRegexDict[countryCode] = regexp.MustCompile(pattern)
+diff --git a/baked_in.go b/baked_in.go
+index 0ae59f0..f1a8d59 100644
+--- a/baked_in.go
++++ b/baked_in.go
+@@ -723,6 +723,7 @@ func isEthereumAddress(fl FieldLevel) bool {
+ func isEthereumAddressChecksum(fl FieldLevel) bool {
+ 	address := fl.Field().String()
+ 
++	ethAddressRegexInit.Do(initEthAddressRegex)
+ 	if !ethAddressRegex().MatchString(address) {
+ 		return false
  	}
-+	e164Regex = regexp.MustCompile(e164RegexString)
- }
