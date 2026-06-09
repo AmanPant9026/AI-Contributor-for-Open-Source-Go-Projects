@@ -13,16 +13,7 @@ it, writes a **minimal patch**, **validates** that patch by compiling, vetting, 
 a pinned Docker sandbox, and — only if the fix verifies — turns it into a ready-to-review
 **draft pull request**. If it cannot verify a fix, it **abstains** rather than guess.
 
-```mermaid
-flowchart LR
-    I([issue]) --> L[localize]
-    L --> R["reproduce<br/>test must fail at base"]
-    R --> E["evidence ladder<br/>compiler · panic · coverage"]
-    E --> FX["repair<br/>bounded per file"]
-    FX --> V{"validate:<br/>build · vet · test"}
-    V -->|all pass| PR([draft PR])
-    V -->|any fail| AB([abstain])
-```
+![Pipeline: issue to localize to reproduce to evidence ladder to repair to validate, branching to draft PR on pass or abstain on fail](docs/pipeline.svg)
 
 Its guiding principle is **do no harm**: the agent submits only a patch that passes its own
 build + vet + reproduction, and otherwise does nothing. That makes it a disciplined fixer of
