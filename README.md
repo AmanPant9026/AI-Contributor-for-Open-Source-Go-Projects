@@ -13,25 +13,30 @@ it, writes a **minimal patch**, **validates** that patch by compiling, vetting, 
 a pinned Docker sandbox, and — only if the fix verifies — turns it into a ready-to-review
 **draft pull request**. If it cannot verify a fix, it **abstains** rather than guess.
 
----
-
-## 📺 Demo
-
-A short walkthrough — localizing a real `validator` bug from execution, validating the fix in a sandbox, and opening a live pull request:
-
-▶️ **[Watch the 4-minute walkthrough](https://drive.google.com/file/d/1lKxgtsvn9nIOX0Az_ms1TlNnOQ_0Q8eY/view?usp=sharing)**
-
-```
-issue ─▶ localize ─▶ reproduce ─▶ fix ─▶ validate ─▶ draft PR
-                          │                  │
-                 execution evidence    build · vet · test
-                 (coverage, traces)    else → ABSTAIN  (no wrong patch is ever submitted)
+```mermaid
+flowchart LR
+    I([issue]) --> L[localize]
+    L --> R["reproduce<br/>test must fail at base"]
+    R --> E["evidence ladder<br/>compiler · panic · coverage"]
+    E --> FX["repair<br/>bounded per file"]
+    FX --> V{"validate:<br/>build · vet · test"}
+    V -->|all pass| PR([draft PR])
+    V -->|any fail| AB([abstain])
 ```
 
 Its guiding principle is **do no harm**: the agent submits only a patch that passes its own
 build + vet + reproduction, and otherwise does nothing. That makes it a disciplined fixer of
 small, well-described bugs with a precisely characterized boundary — not a black box that
 sometimes ships something wrong.
+
+---
+
+## 📺 Demo
+
+A short walkthrough — localizing a real `validator` bug from execution, validating the fix in a
+sandbox, and opening a live pull request:
+
+▶️ **[Watch the 4-minute walkthrough](https://drive.google.com/file/d/1lKxgtsvn9nIOX0Az_ms1TlNnOQ_0Q8eY/view?usp=sharing)**
 
 ---
 
