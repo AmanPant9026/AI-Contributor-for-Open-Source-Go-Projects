@@ -56,7 +56,7 @@ reproduction/repair steps are live model calls (see *Reproducibility* below).
 | `validator-1444` | right file located; fix differs from gold | recall 1.00 | ok / ok / ok | ~0.21 |
 | `validator-1423` | abstained — could not reproduce | — | — | — |
 
-**Headline:** resolves **2 / 5**, with **localization recall 1.00 on every scored instance**,
+**Headline:** resolves **2 / 4**, with **localization recall 1.00 on every scored instance**,
 **zero patches submitted that failed the agent's own checks**, and **build/vet/gofmt clean on
 every submission**. The brief grades *right files / relevant change / conventions / validation /
 PR summary* (not resolution rate); the agent is strong on each — see
