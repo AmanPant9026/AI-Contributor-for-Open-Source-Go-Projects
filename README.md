@@ -6,6 +6,12 @@ that patch by compiling, vetting, and testing inside a pinned Docker sandbox**, 
 fix verifies — turns it into a ready-to-review draft pull request. If it cannot verify a fix, it
 **abstains** rather than guess.
 
+## Demo
+
+A short walkthrough — localizing a real `validator` bug from execution, validating the fix in a sandbox, and opening a live pull request:
+
+<!-- VIDEO: after pushing, edit this file on GitHub and drag go-issue-agent-final-demo.MP4 here -->
+
 ```
 issue ─▶ localize ─▶ reproduce ─▶ fix ─▶ validate ─▶ draft PR
                           │                  │
