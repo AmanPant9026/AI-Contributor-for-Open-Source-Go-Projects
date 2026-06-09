@@ -1,0 +1,37 @@
+diff --git a/response_writer.go b/response_writer.go
+index 6907e51..94d8695 100644
+--- a/response_writer.go
++++ b/response_writer.go
+@@ -85,6 +85,9 @@ func (w *responseWriter) Write(data []byte) (n int, err error) {
+ 	w.WriteHeaderNow()
+ 	n, err = w.ResponseWriter.Write(data)
+ 	w.size += n
++	if err == http.ErrAbortHandler {
++		return n, nil
++	}
+ 	return
+ }
+ 
+@@ -92,6 +95,9 @@ func (w *responseWriter) WriteString(s string) (n int, err error) {
+ 	w.WriteHeaderNow()
+ 	n, err = io.WriteString(w.ResponseWriter, s)
+ 	w.size += n
++	if err == http.ErrAbortHandler {
++		return n, nil
++	}
+ 	return
+ }
+ 
+@@ -117,7 +123,11 @@ func (w *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+ 	if w.size < 0 {
+ 		w.size = 0
+ 	}
+-	return w.ResponseWriter.(http.Hijacker).Hijack()
++	conn, rw, err := w.ResponseWriter.(http.Hijacker).Hijack()
++	if err == http.ErrAbortHandler {
++		return conn, rw, nil
++	}
++	return conn, rw, err
+ }
+ 
+ // CloseNotify implements the http.CloseNotifier interface.

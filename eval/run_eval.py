@@ -51,6 +51,8 @@ from go_issue_agent.sandbox.runner import run_in_sandbox  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "eval"))
 import metrics  # noqa: E402
+import repos  # noqa: E402
+import goldgate  # noqa: E402
 
 TASKS = ROOT / "eval" / "tasks"
 RESULTS = ROOT / "eval" / "results"
@@ -103,6 +105,20 @@ def _tests_pass(test_names: list[str]) -> bool:
     return _run(f"go test -run '{regex}' ./...").ok
 
 
+def _run_v(test_names: list[str]) -> str:
+    """Run the named tests VERBOSE, returning combined output for per-test verdicts."""
+    if not test_names:
+        return ""
+    regex = "^(" + "|".join(test_names) + ")$"
+    r = _run(f"go test -v -run '{regex}' ./...")
+    return (r.stdout or "") + "\n" + (r.stderr or "")
+
+
+def _run_v_all() -> str:
+    r = _run("go test -v ./...")
+    return (r.stdout or "") + "\n" + (r.stderr or "")
+
+
 # ---------------------------------------------------------------- core
 
 def _install_gold_test(inst_dir: Path, inst: dict, iid: str) -> list[str]:
@@ -127,9 +143,24 @@ def _run_resolved(inst_dir: Path, inst: dict, iid: str) -> tuple[bool, bool, boo
     return ftp_passed, ptp_passed, (ftp_passed and ptp_passed)
 
 
+def _ensure_repo(inst_dir: Path, inst: dict) -> Path:
+    """Point the harness at THIS instance's repo (cloning it once if absent), so the
+    validator path is unchanged and cobra/gin instances clone on demand. Sets the
+    module-global REPO_DIR used by the git/sandbox helpers (the harness is sequential)."""
+    global REPO_DIR
+    dest, url = repos.resolve_clone(inst_dir.name, inst.get("repo"))
+    if not (dest / ".git").exists():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        print(f"  cloning {url} -> {dest.relative_to(ROOT)} (first time) ...", flush=True)
+        subprocess.run(["git", "clone", url, str(dest)], check=True, capture_output=True, text=True)
+    REPO_DIR = dest
+    return REPO_DIR
+
+
 def evaluate(inst_dir: Path, candidate: str, cand_diff_override: str | None = None) -> metrics.InstanceScore:
     inst = json.loads((inst_dir / "instance.json").read_text())
-    iid = inst_dir.name.replace("validator-", "")
+    _ensure_repo(inst_dir, inst)
+    iid = inst_dir.name
     instance_id = inst.get("instance_id", inst_dir.name)
     gold_patch = inst.get("patch", "")
     cand_diff = (gold_patch if candidate == "gold"
@@ -197,23 +228,34 @@ def evaluate(inst_dir: Path, candidate: str, cand_diff_override: str | None = No
         note=ptp_note, cand_files=sorted(cand_files), gold_files=sorted(gold_files))
 
 
-def load_instance_dirs(only: list[str] | None) -> list[Path]:
-    dirs = sorted(p.parent for p in TASKS.glob("validator-*/instance.json"))
+def load_instance_dirs(only: list[str] | None, prefix: str = "validator") -> list[Path]:
+    """Task dirs for one repo prefix (default validator -> existing gates unchanged).
+    Instances the gold-gate marked `_excluded` (env/quality mismatch) are skipped -- they
+    are not valid tasks. `--only` matches the full dir name or the part after the first dash."""
+    dirs = sorted(p.parent for p in TASKS.glob(f"{prefix}-*/instance.json"))
+    out = []
+    for d in dirs:
+        try:
+            if json.loads((d / "instance.json").read_text()).get("_excluded"):
+                continue
+        except (OSError, ValueError):
+            continue
+        out.append(d)
     if only:
         keep = set(only)
-        dirs = [d for d in dirs if d.name.replace("validator-", "") in keep]
-    return dirs
+        out = [d for d in out if d.name in keep or d.name.split("-", 1)[-1] in keep]
+    return out
 
 
-def score_all(candidate: str, only: list[str] | None) -> list[metrics.InstanceScore]:
+def score_all(candidate: str, only: list[str] | None, prefix: str = "validator") -> list[metrics.InstanceScore]:
     scores = []
-    for d in load_instance_dirs(only):
+    for d in load_instance_dirs(only, prefix=prefix):
         print(f"  [{candidate}] {d.name} ...", flush=True)
         scores.append(evaluate(d, candidate))
     return scores
 
 
-def score_agent(only: list[str] | None) -> list[metrics.InstanceScore]:
+def score_agent(only: list[str] | None, prefix: str = "validator") -> list[metrics.InstanceScore]:
     """Run the REAL agent on each instance, then score its code-only patch with
     the same ruler used for gold/empty. Needs Ollama + Docker. Per-instance
     errors are captured (status='error') so one failure doesn't abort the gate."""
@@ -224,13 +266,14 @@ def score_agent(only: list[str] | None) -> list[metrics.InstanceScore]:
     agent_out = RESULTS / "agent"
     agent_out.mkdir(parents=True, exist_ok=True)
     scores: list[metrics.InstanceScore] = []
-    for d in load_instance_dirs(only):
+    for d in load_instance_dirs(only, prefix=prefix):
         inst = json.loads((d / "instance.json").read_text())
         instance_id = inst.get("instance_id", d.name)
         print(f"  [agent] {d.name}: running agent (this calls the model + sandbox) ...", flush=True)
         try:
-            repo_ops.checkout(REPO_DIR, inst["base_commit"])
-            res = run_agent(inst["problem_statement"], REPO_DIR,
+            repo_dir = _ensure_repo(d, inst)
+            repo_ops.checkout(repo_dir, inst["base_commit"])
+            res = run_agent(inst["problem_statement"], repo_dir,
                             llm=llm, base_ref=inst["base_commit"],
                             on_log=lambda m, n=d.name: print(f"      [{n}] {m}", flush=True))
             (agent_out / f"{d.name}.patch").write_text(res.code_patch)
@@ -252,13 +295,73 @@ def score_agent(only: list[str] | None) -> list[metrics.InstanceScore]:
     return scores
 
 
+def _validate_one(inst_dir: Path, inst: dict) -> tuple[bool, str, list[str], list[str]]:
+    """Docker steps for one candidate: install gold test at base, confirm F2P FAILS, derive
+    P2P, apply gold fix, confirm F2P PASSES (and P2P holds). Returns the gold-gate verdict."""
+    _ensure_repo(inst_dir, inst)
+    repo_ops.checkout(REPO_DIR, inst["base_commit"])
+    try:
+        tp = inst.get("test_patch", "")
+        if tp.strip() and not _apply_patch(tp):
+            return False, "gold test_patch did not apply", [], []
+        f2p = list(inst.get("FAIL_TO_PASS", []))
+        if not f2p:
+            return False, "no provisional FAIL_TO_PASS", [], []
+        base_f2p = goldgate.parse_go_test_v(_run_v(f2p))               # want: all FAIL
+        p2p_cands = [t for t, v in goldgate.parse_go_test_v(_run_v_all()).items()
+                     if v == "PASS" and t not in f2p]                  # existing tests passing at base
+        if not _apply_patch(inst.get("patch", "")):
+            return False, "gold fix did not apply", [], []
+        after_f2p = goldgate.parse_go_test_v(_run_v(f2p))              # want: all PASS
+        after_all = goldgate.parse_go_test_v(_run_v_all())
+        p2p_after = {t: after_all.get(t, "FAIL") for t in p2p_cands}
+        return goldgate.decide_validation(base_f2p, after_f2p, p2p_after)
+    finally:
+        repo_ops.checkout(REPO_DIR, inst["base_commit"])               # cleanup
+
+
+def cmd_validate(args) -> int:
+    dirs = load_instance_dirs(args.only, prefix=args.prefix)
+    if not dirs:
+        print(f"FAIL: no tasks under eval/tasks/{args.prefix}-*/"); return 1
+    print(f"=== gold-validation gate: {len(dirs)} candidate(s) under {args.prefix}-* ===")
+    print("(clones each repo, runs gold+test in the sandbox; keeps ONLY real FAIL->PASS)")
+    kept, excluded = [], []
+    for d in dirs:
+        inst = json.loads((d / "instance.json").read_text())
+        try:
+            ok, reason, f2p, p2p = _validate_one(d, inst)
+        except Exception as e:  # noqa: BLE001
+            ok, reason, f2p, p2p = False, f"validation crashed: {e}", [], []
+        if ok:
+            inst.update(FAIL_TO_PASS=f2p, PASS_TO_PASS=p2p[:50],
+                        _needs_validation=False, _validated=True)
+            inst.pop("_excluded", None); inst.pop("_exclude_reason", None)
+            kept.append(d.name)
+            print(f"  OK  {d.name}: validated (F2P={len(f2p)}, P2P={len(p2p)})", flush=True)
+        else:
+            inst.update(_validated=False, _excluded=True, _exclude_reason=reason)
+            excluded.append((d.name, reason))
+            print(f"  XX  {d.name}: excluded -- {reason}", flush=True)
+        (d / "instance.json").write_text(json.dumps(inst, indent=2), encoding="utf-8")
+
+    print(f"\nvalidated: {len(kept)}/{len(dirs)}   excluded: {len(excluded)}")
+    for n, r in excluded:
+        print(f"  excluded {n}: {r}")
+    print("\nValidated instances are safe to score; excluded ones are env/quality "
+          "mismatches (NOT agent failures).")
+    return 0 if kept else 1
+
+
+# ---------------------------------------------------------------- CLI
+
 def cmd_gate4(args) -> int:
-    dirs = load_instance_dirs(args.only)
+    dirs = load_instance_dirs(args.only, prefix=args.prefix)
     if not dirs:
         print("FAIL: no instances found"); return 1
     print(f"=== gate-4: run the agent end-to-end over {len(dirs)} instance(s) ===")
     print("(this uses the real model via Ollama and the Docker sandbox; first run is slow)")
-    scores = score_agent(args.only)
+    scores = score_agent(args.only, prefix=args.prefix)
     print("\n" + metrics.format_table(scores))
 
     RESULTS.mkdir(parents=True, exist_ok=True)
@@ -289,15 +392,15 @@ def cmd_gate4(args) -> int:
 # ---------------------------------------------------------------- CLI
 
 def cmd_gate(args) -> int:
-    dirs = load_instance_dirs(args.only)
+    dirs = load_instance_dirs(args.only, prefix=args.prefix)
     if not dirs:
-        print("FAIL: no instances found under eval/tasks/validator-*/instance.json"); return 1
+        print("FAIL: no instances found under eval/tasks/*/instance.json"); return 1
     print(f"=== gate-2: ruler self-check over {len(dirs)} instance(s) ===")
     print("--- gold candidates (every one must resolve) ---")
-    gold = score_all("gold", args.only)
+    gold = score_all("gold", args.only, prefix=args.prefix)
     print(metrics.format_table(gold))
     print("--- empty candidates (none may resolve) ---")
-    empty = score_all("empty", args.only)
+    empty = score_all("empty", args.only, prefix=args.prefix)
     print(metrics.format_table(empty))
 
     RESULTS.mkdir(parents=True, exist_ok=True)
@@ -323,7 +426,7 @@ def cmd_gate(args) -> int:
 
 
 def cmd_candidate(args) -> int:
-    scores = score_all(args.candidate, args.only)
+    scores = score_all(args.candidate, args.only, prefix=args.prefix)
     print(metrics.format_table(scores))
     print(f"\nresolution rate: {metrics.resolution_rate(scores)}")
     RESULTS.mkdir(parents=True, exist_ok=True)
@@ -334,21 +437,29 @@ def cmd_candidate(args) -> int:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Stage 2 eval harness (the ruler) + Stage 4 agent runner.")
+    ap = argparse.ArgumentParser(description="Stage 2 eval harness (the ruler) + agent runner.")
     ap.add_argument("--gate", action="store_true", help="run the gate-2 self-check (gold vs empty)")
     ap.add_argument("--gate4", action="store_true", help="run the gate-4 agent end-to-end check")
+    ap.add_argument("--validate", action="store_true",
+                    help="gold-validate candidate tasks for --prefix (keep only real FAIL->PASS)")
     ap.add_argument("--candidate", choices=["gold", "empty", "agent"], help="score one candidate kind")
     ap.add_argument("--only", nargs="*", default=None, help="restrict to these instance ids")
+    ap.add_argument("--prefix", default="validator",
+                    help="which approved repo's tasks to use (validator | cobra | gin)")
     args = ap.parse_args()
-    if not REPO_DIR.exists():
+    # the validator checkout is only required for the (default) validator prefix; other repos
+    # clone on demand via _ensure_repo.
+    if args.prefix == "validator" and not REPO_DIR.exists():
         print(f"FAIL: validator checkout missing at {REPO_DIR} (run 'make check-env' once)")
         return 1
+    if args.validate:
+        return cmd_validate(args)
     if args.gate:
         return cmd_gate(args)
     if args.gate4:
         return cmd_gate4(args)
     if args.candidate == "agent":
-        scores = score_agent(args.only)
+        scores = score_agent(args.only, prefix=args.prefix)
         print("\n" + metrics.format_table(scores))
         print(f"\nresolution rate: {metrics.resolution_rate(scores)}")
         return 0

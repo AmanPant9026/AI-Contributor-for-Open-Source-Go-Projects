@@ -162,25 +162,38 @@ def run_agent(problem_statement: str, repo_dir: str | Path, *, llm: LLMClient,
     ev = evidence_fn(repo_dir, repro_code)
     tracer.tool_call("coverage", covered=len(ev.covered), traced=len(ev.traced),
                      compiled_err=len(ev.compiled_err))
+    # Coverage NARROWS to the files the repro executed; the model ORDERS that short list. We
+    # never target a *_test.go file -- a production bug is not fixed by editing a test -- so we
+    # drop them before ranking (otherwise the repro's own test file steals a target slot).
+    covered_ranked: list[str] = []
     if ev.any():
-        covered_ranked = evidence_phase.rerank(loc.candidates, ev)[:8]    # coverage-narrowed
+        covered_ranked = [f for f in evidence_phase.rerank(loc.candidates, ev)
+                          if not f.endswith("_test.go")][:8]
+    if covered_ranked:
         targets = repair.rank_suspects(llm, problem_statement, ctx.text, covered_ranked)[:3]
-        per_file = 2          # attempts per file, with feedback (recover a fixable build error)
+        per_file = 2          # validated attempts per file, with feedback (recover a build error)
         say(f"evidence: covered={len(ev.covered)} traced={ev.traced[:2]} "
             f"compile_err={ev.compiled_err[:2]} -> model-ranked targets={targets} (x{per_file})")
     else:
-        primary = ctx.primary_file or (loc.candidates[0] if loc.candidates else None)
+        primary = ctx.primary_file or next(
+            (c for c in loc.candidates if not c.endswith("_test.go")), None)
         targets = [primary] if primary else []
         per_file = max_repair_attempts                                   # original behavior
         say(f"evidence: none from repro -> lexical+PageRank ranking, target={primary} (x{per_file})")
     tracer.decision("evidence", has_evidence=ev.any(), covered=len(ev.covered),
                     targets=targets, per_file=per_file)
 
-    # Phase 4b/5/6: for each target file, up to `per_file` propose -> apply -> validate
-    # attempts; feedback carries WITHIN a file (so a build error gets fixed) and resets between
-    # files. Submit ONLY a fix that passes build + vet + the repro; otherwise abstain.
+    # Phase 4b/5/6: for each target, up to `per_file` *validated* propose->apply->validate
+    # attempts. A malformed reply (no parseable blocks, or a SEARCH that doesn't match the file)
+    # does NOT consume that file's real-attempt budget -- it retries with feedback from a small
+    # SHARED pool -- so the model's top suspect actually gets its real shots instead of losing
+    # them to a no-op. Still provably bounded: real attempts <= len(targets)*per_file, plus at
+    # most MALFORMED_BUDGET retries total. Submit ONLY a fix that passes build+vet+repro; else
+    # abstain.
+    MALFORMED_BUDGET = 3
     internal_ok = False
     attempts = 0
+    malformed_used = 0
     ever_applied = False
     verified_patch: str | None = None     # build + vet + repro ALL pass -> the only thing we submit
     last_applied_patch = ""                # most recent applied diff (for debug visibility only)
@@ -192,13 +205,19 @@ def run_agent(problem_statement: str, repo_dir: str | Path, *, llm: LLMClient,
         # load the target file's exact text so SEARCH blocks match it verbatim
         excerpt = context_phase.file_excerpt(repo_dir, target, loc.terms) if ev.any() else ""
         ctx_text = ctx.text + (f"\n\n{excerpt}" if excerpt else "")
-        for _ in range(per_file):
+        real_tries = 0
+        while real_tries < per_file:
             attempts += 1
             repo_ops.checkout(repo_dir, base_ref)      # independent attempts
             tracer.tool_call("checkout", ref=str(base_ref)[:12])
             edits = repair.propose_fix(llm, problem_statement, ctx_text, feedback, target_file=target)
-            if not edits:
-                say(f"attempt {attempts} (target {target}): model produced no edits")
+            if not edits:                              # malformed: no parseable blocks
+                if malformed_used >= MALFORMED_BUDGET:
+                    say(f"attempt {attempts} (target {target}): no edits; malformed budget spent -> next file")
+                    tracer.decision("repair_attempt", n=attempts, target=target, outcome="no_edits_giveup")
+                    break
+                malformed_used += 1
+                say(f"attempt {attempts} (target {target}): no edits (retry {malformed_used}/{MALFORMED_BUDGET})")
                 feedback = ("You produced no valid search/replace blocks. Output at least one "
                             "block using the <<<<<<< SEARCH / ======= / >>>>>>> REPLACE markers.")
                 tracer.decision("repair_attempt", n=attempts, target=target, outcome="no_edits")
@@ -206,11 +225,18 @@ def run_agent(problem_statement: str, repo_dir: str | Path, *, llm: LLMClient,
             applied = edits_mod.apply_edits(repo_dir, edits, default_target=target)
             tracer.tool_call("apply_edits", target=target, applied=applied.applied,
                              files=applied.changed_files)
-            if applied.applied == 0:                   # nothing changed -> retry with feedback
-                say(f"attempt {attempts} (target {target}): apply failed: {applied.failures}")
+            if applied.applied == 0:                   # malformed: SEARCH didn't match / no-op
+                if malformed_used >= MALFORMED_BUDGET:
+                    say(f"attempt {attempts} (target {target}): apply failed; malformed budget spent -> next file")
+                    tracer.decision("repair_attempt", n=attempts, target=target, outcome="apply_failed_giveup")
+                    break
+                malformed_used += 1
+                say(f"attempt {attempts} (target {target}): apply failed: {applied.failures} "
+                    f"(retry {malformed_used}/{MALFORMED_BUDGET})")
                 feedback = "; ".join(applied.failures)
                 tracer.decision("repair_attempt", n=attempts, target=target, outcome="apply_failed")
                 continue
+            real_tries += 1                            # a genuine, applied fix attempt
             ever_applied = True
             patch_now = finalize.code_only_diff(repo_dir)
             if patch_now.strip():

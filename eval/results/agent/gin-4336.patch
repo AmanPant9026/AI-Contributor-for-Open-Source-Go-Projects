@@ -1,0 +1,16 @@
+diff --git a/recovery.go b/recovery.go
+index fdd463f..94e32b9 100644
+--- a/recovery.go
++++ b/recovery.go
+@@ -55,6 +55,11 @@ func CustomRecoveryWithWriter(out io.Writer, handle RecoveryFunc) HandlerFunc {
+ 	return func(c *Context) {
+ 		defer func() {
+ 			if err := recover(); err != nil {
++				// http.ErrAbortHandler is a sentinel panic used to abort a handler.
++				// It should not be recovered or logged; re-panic so the server can handle it.
++				if errors.Is(err.(error), http.ErrAbortHandler) {
++					panic(err)
++				}
+ 				// Check for a broken connection, as it is not really a
+ 				// condition that warrants a panic stack trace.
+ 				var brokenPipe bool

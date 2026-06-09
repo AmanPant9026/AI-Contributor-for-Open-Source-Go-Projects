@@ -1,0 +1,14 @@
+diff --git a/command.go b/command.go
+--- a/command.go
++++ b/command.go
+@@ -979,6 +979,10 @@ func (c *Command) ValidateArgs(args []string) error {
+ }
+ 
+ func (c *Command) validateRequiredFlags() error {
++	if c.DisableFlagParsing {
++		return nil
++	}
++
+ 	flags := c.Flags()
+ 	missingFlagNames := []string{}
+ 	flags.VisitAll(func(pflag *flag.Flag) {

@@ -40,6 +40,18 @@ def test_repair_loop_is_bounded_no_infinite_loop(tmp_path):
     assert res.code_patch == ""        # do-no-harm: nothing unverified is submitted
 
 
+def test_malformed_replies_are_bounded_and_abstain(tmp_path):
+    # the model NEVER emits a parseable edit -> malformed retries draw from the shared pool and
+    # then STOP (no infinite loop); nothing is applied, so we abstain with an empty patch.
+    repo, head = ta.make_repo(tmp_path)
+    llm = ta.scripted_llm(fix_block="sorry, I have no idea")     # unparseable -> no edits
+    res = run_agent("the greeting is wrong", repo, llm=llm, base_ref=head,
+                    validate_fn=ALWAYS_OK, max_repair_attempts=2)
+    assert res.attempts <= 2 + 3       # per_file (no-evidence) + MALFORMED_BUDGET, provably finite
+    assert res.status == "no_edits"    # never applied a real edit
+    assert res.code_patch == ""
+
+
 # ------------------------------------------------- 2. selection picks a validated candidate
 def test_selection_submits_a_validated_candidate(tmp_path):
     repo, head = ta.make_repo(tmp_path)

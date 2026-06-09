@@ -6,7 +6,7 @@
       "seq": 0,
       "type": "decision",
       "name": "localize",
-      "t_ms": 286,
+      "t_ms": 322,
       "terms": [
         "postcode_iso3166_alpha2_field",
         "iso3166_1_alpha2",
@@ -32,7 +32,7 @@
       "seq": 1,
       "type": "tool_call",
       "name": "llm",
-      "t_ms": 436,
+      "t_ms": 472,
       "model": "anthropic/claude-sonnet-4-5-20250929",
       "max_tokens": 64,
       "cache": "hit",
@@ -42,7 +42,7 @@
       "seq": 2,
       "type": "decision",
       "name": "context",
-      "t_ms": 436,
+      "t_ms": 472,
       "actions": [
         "I need to understand the issue better. Let me search for the PR #1270 changes and look at the `parseOneOfParam2` function since it's being used in `isPostcodeByIso3166Alpha2Field`."
       ],
@@ -52,7 +52,7 @@
       "seq": 3,
       "type": "tool_call",
       "name": "llm",
-      "t_ms": 437,
+      "t_ms": 473,
       "model": "anthropic/claude-sonnet-4-5-20250929",
       "max_tokens": 900,
       "cache": "hit",
@@ -62,7 +62,7 @@
       "seq": 4,
       "type": "decision",
       "name": "repro",
-      "t_ms": 10934,
+      "t_ms": 11376,
       "valid": true,
       "attempts": 1,
       "test": "TestAgentRepro"
@@ -71,7 +71,7 @@
       "seq": 5,
       "type": "tool_call",
       "name": "coverage",
-      "t_ms": 15853,
+      "t_ms": 16379,
       "covered": 10,
       "traced": 0,
       "compiled_err": 0
@@ -80,7 +80,7 @@
       "seq": 6,
       "type": "tool_call",
       "name": "llm",
-      "t_ms": 15854,
+      "t_ms": 16380,
       "model": "anthropic/claude-sonnet-4-5-20250929",
       "max_tokens": 120,
       "cache": "hit",
@@ -90,7 +90,7 @@
       "seq": 7,
       "type": "decision",
       "name": "evidence",
-      "t_ms": 15854,
+      "t_ms": 16380,
       "has_evidence": true,
       "covered": 10,
       "targets": [
@@ -104,14 +104,14 @@
       "seq": 8,
       "type": "tool_call",
       "name": "checkout",
-      "t_ms": 16011,
+      "t_ms": 16540,
       "ref": "2cce309b681d"
     },
     {
       "seq": 9,
       "type": "tool_call",
       "name": "llm",
-      "t_ms": 16011,
+      "t_ms": 16541,
       "model": "anthropic/claude-sonnet-4-5-20250929",
       "max_tokens": 900,
       "cache": "hit",
@@ -121,7 +121,7 @@
       "seq": 10,
       "type": "tool_call",
       "name": "apply_edits",
-      "t_ms": 16012,
+      "t_ms": 16541,
       "target": "baked_in.go",
       "applied": 1,
       "files": [
@@ -132,7 +132,7 @@
       "seq": 11,
       "type": "tool_call",
       "name": "validate",
-      "t_ms": 26786,
+      "t_ms": 27117,
       "target": "baked_in.go",
       "stage": "all",
       "ok": true
@@ -141,7 +141,7 @@
       "seq": 12,
       "type": "decision",
       "name": "repair_attempt",
-      "t_ms": 26786,
+      "t_ms": 27118,
       "n": 1,
       "target": "baked_in.go",
       "outcome": "verified"
@@ -150,7 +150,7 @@
       "seq": 13,
       "type": "tool_call",
       "name": "llm",
-      "t_ms": 26787,
+      "t_ms": 27119,
       "model": "anthropic/claude-sonnet-4-5-20250929",
       "max_tokens": 300,
       "cache": "hit",
@@ -160,7 +160,7 @@
       "seq": 14,
       "type": "decision",
       "name": "finalize",
-      "t_ms": 26787,
+      "t_ms": 27119,
       "status": "resolved_internally",
       "patch_bytes": 364,
       "attempts": 1

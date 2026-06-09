@@ -1,0 +1,22 @@
+diff --git a/completions.go b/completions.go
+index 2c24839..88c19e3 100644
+--- a/completions.go
++++ b/completions.go
+@@ -353,12 +353,14 @@ func (c *Command) getCompletions(args []string) (*Command, []string, ShellCompDi
+ 			// We cannot use finalCmd.Flags() because we may not have called ParsedFlags() for commands
+ 			// that have set DisableFlagParsing; it is ParseFlags() that merges the inherited and
+ 			// non-inherited flags.
+-			finalCmd.InheritedFlags().VisitAll(func(flag *pflag.Flag) {
+-				doCompleteFlags(flag)
+-			})
+ 			finalCmd.NonInheritedFlags().VisitAll(func(flag *pflag.Flag) {
+ 				doCompleteFlags(flag)
+ 			})
++			finalCmd.InheritedFlags().VisitAll(func(flag *pflag.Flag) {
++				if finalCmd.NonInheritedFlags().Lookup(flag.Name) == nil {
++					doCompleteFlags(flag)
++				}
++			})
+ 		}
+ 
+ 		directive = ShellCompDirectiveNoFileComp
