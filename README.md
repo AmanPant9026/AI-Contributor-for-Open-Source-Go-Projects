@@ -1,4 +1,4 @@
-# go-issue-agent
+# Go-Issue Agent
 
 **An agentic AI contributor for open-source Go projects.** Give it a GitHub issue from an
 approved Go repository; it localizes the bug, reproduces it, writes a minimal patch, **validates
@@ -10,7 +10,7 @@ fix verifies — turns it into a ready-to-review draft pull request. If it canno
 
 A short walkthrough — localizing a real `validator` bug from execution, validating the fix in a sandbox, and opening a live pull request:
 
-<!-- VIDEO: after pushing, edit this file on GitHub and drag go-issue-agent-final-demo.MP4 here -->
+▶️ **[Watch the 4-minute walkthrough](https://drive.google.com/file/d/1lKxgtsvn9nIOX0Az_ms1TlNnOQ_0Q8eY/view?usp=sharing)**
 
 ```
 issue ─▶ localize ─▶ reproduce ─▶ fix ─▶ validate ─▶ draft PR
